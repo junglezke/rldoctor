@@ -6,12 +6,15 @@ choice. This page collects them in one place, along with the reasoning and the s
 If you disagree with a number, that is a feature: the intent is that you can argue with a
 threshold rather than with the tool. Open an issue with the run that changed your mind.
 
-**A note on all of them:** thresholds are calibrated against documented failure modes and
-against the twelve simulated scenarios in `rldoctor/simulate.py`, not against a large
-corpus of real runs — because no such public corpus exists. They are a starting point
-informed by the literature, and the honest way to use them is as a prompt to look, not as
-a verdict to act on blindly. Contributions of real-run calibration data are the single
-most valuable thing this project could receive.
+**A note on all of them:** thresholds are calibrated against documented failure modes,
+against the twelve simulated scenarios in `rldoctor/simulate.py`, and against four public
+GRPO training logs (see the README). Four runs is enough to have found three real bugs and
+is nowhere near enough to be a calibration set. They remain a starting point informed by
+the literature, and the honest way to use them is as a prompt to look, not as a verdict to
+act on blindly.
+
+Real-run data is still the single most valuable thing this project could receive, and a
+run where a verdict is *wrong* is worth more than ten where it is right.
 
 ---
 
@@ -182,16 +185,33 @@ against the first.
 
 ---
 
-## `gradient_pathology` — NaNs, vanishing updates, spikes
+## `gradient_pathology` — NaNs, dead steps, vanishing updates, spikes
 
-NaN or inf → CRITICAL; every step after the first one is wasted wall-clock even if the
-loss curve kept plotting. Grad norm below 5% of its anchored early-run value → WARNING,
-and if degenerate groups explain it the detector says so and points you there instead —
-the gradient is the symptom, not the disease. Three or more spikes beyond 8 robust sigma
-→ WARNING.
+**Non-finite values.** NaN or inf → CRITICAL; every step after the first one is wasted
+wall-clock even if the loss curve kept plotting. Only values the log actually *carried*
+as non-finite count. A `nan` in the aligned series usually means the metric was not logged
+at that step — every run that evaluates on a different cadence from training is full of
+them — and an earlier version of this detector counted the padding and declared a healthy
+run numerically dead.
 
-Spike detection uses median/MAD z-scores rather than mean/std, since the spikes would
-otherwise inflate the very scale used to detect them.
+**Exactly-zero updates.** Steps whose gradient norm is not small but literally `0.0`.
+INFO at 20% of steps, WARNING at 40%, CRITICAL at 70%. This is not a decay: those steps
+did not move the policy at all, while their rollouts were generated and paid for. In GRPO
+it is the fingerprint of degenerate groups, and it is visible even when
+`frac_reward_zero_std` is not logged. On one public run it was 88% of steps, rising from
+40% in the first quarter to 93% in the last. These steps are the only thing besides
+degenerate groups that feeds the waste estimate, because they are the only other thing
+that genuinely buys nothing.
+
+**Vanishing gradient.** Below 5% of the anchored early-run value → WARNING, and if
+degenerate groups explain it the detector says so and points you there instead — the
+gradient is the symptom, not the disease.
+
+**Spikes.** Three or more values that are *both* beyond 8 robust sigma *and* at least 3x
+the median. Both conditions are needed: on a tightly clustered series the MAD is tiny, so
+a value only twice the median can clear 8 sigma, and an 80-step real run was flagged for
+six such "spikes" before the ratio condition was added. Detection uses median/MAD rather
+than mean/std, since spikes would otherwise inflate the very scale used to find them.
 
 ---
 
@@ -233,7 +253,9 @@ evidence rather than on a step budget.
 ## Adding a detector
 
 One file in `src/rldoctor/detectors/`, one entry in `BUILTIN_DETECTORS`, and one scenario
-in `simulate.py` with its expected detection recorded in `EXPECTED_DETECTIONS`. The
+in `simulate.py` with its expected detection recorded in `EXPECTED_DETECTIONS`. If the
+check came out of a real log, add its shape to `tests/test_real_log_shapes.py` too —
+that file exists because real logs have shapes the simulator does not. The
 scenario is what makes the check trustworthy: it proves the detector fires on the failure
 it claims and — via the healthy scenario — that it stays quiet otherwise.
 
