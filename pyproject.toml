@@ -1,0 +1,82 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "rldoctor"
+version = "0.1.0"
+description = "Diagnose why your GRPO/RLVR run is burning GPU-hours without learning."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "junglezke" }]
+keywords = [
+    "reinforcement-learning",
+    "rlhf",
+    "rlvr",
+    "grpo",
+    "ppo",
+    "llm",
+    "diagnostics",
+    "observability",
+    "verl",
+    "trl",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = ["numpy>=1.21"]
+
+[project.optional-dependencies]
+wandb = ["wandb>=0.16"]
+tensorboard = ["tbparse>=0.0.8"]
+all = ["wandb>=0.16", "tbparse>=0.0.8"]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.6",
+    "mypy>=1.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/junglezke/rldoctor"
+Repository = "https://github.com/junglezke/rldoctor"
+Issues = "https://github.com/junglezke/rldoctor/issues"
+Changelog = "https://github.com/junglezke/rldoctor/blob/main/CHANGELOG.md"
+
+[project.scripts]
+rldoctor = "rldoctor.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rldoctor"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# UP006/UP035/UP045 push PEP 585/604 syntax. We support Python 3.9, where those
+# forms are only safe inside `from __future__ import annotations` scopes -- and
+# some of our annotations (dataclass fields consumed by tooling) are evaluated.
+# Keeping `typing.Dict` / `Optional` is the conservative choice for a library
+# that has to install cleanly next to whatever the user's cluster image pins.
+ignore = ["E501", "B008", "UP006", "UP035", "UP045"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.mypy]
+python_version = "3.9"
+ignore_missing_imports = true
