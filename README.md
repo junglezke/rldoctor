@@ -182,49 +182,57 @@ producing a worse report. Anything unresolved is reported rather than dropped:
 Known-good with **verl**, **TRL** (including `trainer_state.json` from any HuggingFace checkpoint), and any loop that hands us a list of dicts. One
 required dependency: `numpy`.
 
-## Validated against a real run
+## Validated against real runs
 
 Point it at a HuggingFace checkpoint's `trainer_state.json` — every `checkpoint-N/`
-directory ships one, which makes it the most widely available real training log there
-is:
+directory ships one, which makes it the most widely available real training log there is:
 
 ```bash
 rldoctor diagnose ./checkpoint-1200/trainer_state.json
 ```
 
-Run against a public GRPO checkpoint (1,227 logged steps, TRL, four reward components),
-it found two things worth acting on:
+Run against **four public GRPO checkpoints** (89 to 5,001 logged steps; 1.5s for the
+largest), it found:
 
-- **100% of rollouts were truncated.** Not 99% — the clipped ratio's *minimum* over the
-  whole run was 0.992, and `completions/mean_terminated_length` was 0, meaning not one
-  completion ever reached an EOS token. Every reward in that run is partly a measurement
-  of the 8192-token cap.
-- **The best checkpoint was 161 steps before the end.** Training reward over the last
-  428 points has a Mann-Kendall p of 0.71 against a noise floor thirteen times the size
-  of the total move.
-
-It also correctly said nothing about the six checks that had no problem to report, and
-correctly skipped `kl_drift` because that run trains with no KL penalty.
+| run | verdict |
+|---|---|
+| OpenThinker3-7B-SFT-GRPO | **100% of rollouts truncated.** Not 99% — the clipped ratio's *minimum* over 1,227 steps was 0.992, and `completions/mean_terminated_length` was 0, so not one completion ever reached an EOS token. Every reward in that run is partly a measurement of the 8192-token cap. |
+| RLVR-qwen3-1.7B-hotpot | **88% of optimiser steps produced a gradient norm of exactly zero**, rising from 40% in the first quarter to 93% in the last. Those rollouts were generated, paid for, and moved the policy not at all. That run does not log `frac_reward_zero_std`, so the group-variance check could not run — the gradient norm gave it away instead. |
+| RLVR-qwen3-1.7B-bigmath | 29% zero-gradient steps, plus a reward plateau. |
+| grpo-qwen3-1.7B-math345 | Nothing above INFO. 48% of groups measurably degenerate, which on an 80-step run is worth knowing but not worth an alarm. |
 
 ### What that exercise actually bought
 
-Two bugs, both of which the simulated corpus could never have found, and one of them the
-expensive kind:
+Three bugs, none of which the simulated corpus could have found, and one capability that
+only existed because a real run had a shape I had not imagined:
 
 **A false positive.** The first run reported *"4 non-finite gradient norms — training is
 numerically dead from step 305"* on a run whose gradient norms were entirely finite. That
 log records eval metrics on a different cadence from training metrics, so the aligned
-series carries `nan` at every eval-only row — and the detector counted the padding.
-Every real run with a held-out eval has that shape. `nan` now means "not logged here",
-and only a value the log actually carried as non-finite counts.
+series carries `nan` at every eval-only row — and the detector counted the padding. Every
+real run with a held-out eval has that shape.
+
+**A second false positive.** On an 80-step run, six "gradient spikes beyond 8 robust
+sigma" whose largest value was *twice* the median. On a tightly clustered series the MAD
+is tiny, so a statistical outlier need not be a materially large one. A spike now has to
+be both.
 
 **An overclaim.** The cost banner announced *"~99% of this run's rollout compute produced
 no learning signal"*, driven entirely by the truncation rate. But a truncated rollout's
-advantage is *distorted*, not zero — it is not the same thing as a degenerate group,
-which genuinely buys nothing. Truncation no longer feeds the waste estimate.
+advantage is *distorted*, not zero — that is not the same thing as a degenerate group,
+which genuinely buys nothing. Truncation no longer feeds the waste estimate; exactly-zero
+gradient steps, which really do buy nothing, now do.
 
-Both are regression-tested in `tests/test_real_log_shapes.py`. If you point this at a run
-and it tells you something wrong, that is the most valuable issue you can file.
+**And a new check.** Exactly-zero updates are not a decay and were not something I had
+thought to look for. Real logs are full of them.
+
+Also fixed while reading the same logs: TRL writes `eval_reward` with an underscore where
+verl writes `val/test_score` with a slash, and handling only the slash form meant
+`eval_rewards/accuracy_reward/mean` — a held-out accuracy — was being read as the
+*training* reward, which would have inverted the reward-hacking check.
+
+All of it is pinned in `tests/test_real_log_shapes.py`. If you point this at a run and it
+tells you something wrong, that is the most valuable issue you can file.
 
 ## How it decides
 
@@ -292,7 +300,7 @@ none:
 ```bash
 git clone https://github.com/junglezke/rldoctor && cd rldoctor
 pip install -e ".[dev]"
-pytest                # 131 tests
+pytest                # 135 tests
 rldoctor selftest     # detection matrix across all 12 scenarios
 ruff check src tests
 python tools/make_banner.py   # regenerate the README image

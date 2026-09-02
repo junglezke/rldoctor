@@ -170,3 +170,59 @@ def test_truncation_is_not_counted_as_wasted_rollout_compute():
     assert result.by_name("length_pathology").severity is Severity.CRITICAL
     assert result.cost.wasted_fraction == 0.0
     assert result.cost.headline() is None
+
+
+# -- gradient shapes only real runs produce ---------------------------------
+
+
+def _with_grad(values):
+    return [
+        {"step": i + 1, "grad_norm": float(v), "reward": 1.0, "entropy": 0.5}
+        for i, v in enumerate(values)
+    ]
+
+
+def test_a_tightly_clustered_series_has_no_spikes():
+    """8 robust sigmas is reachable at 2x the median when the MAD is tiny, and
+    2x the median is not a spike by any useful definition. A real 80-step run
+    was flagged for six 'spikes' whose largest value was twice the typical one.
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(0)
+    values = list(0.11 + rng.normal(0, 0.002, 80))
+    values[10] = values[40] = values[70] = 0.21  # 2x the median
+    finding = diagnose(run_from_records(_with_grad(values))).by_name("gradient_pathology")
+    assert finding.metrics.get("n_spikes", 0) == 0
+    assert finding.severity is Severity.OK
+
+
+def test_a_real_spike_still_fires():
+    import numpy as np
+
+    rng = np.random.default_rng(1)
+    values = list(0.5 + rng.normal(0, 0.02, 200))
+    for idx in (50, 100, 150):
+        values[idx] = 12.0  # 24x the median, as seen on a real run
+    finding = diagnose(run_from_records(_with_grad(values))).by_name("gradient_pathology")
+    assert finding.metrics["n_spikes"] == 3
+    assert finding.severity >= Severity.WARNING
+
+
+def test_exactly_zero_updates_are_reported_as_dead_steps():
+    """88% of steps on one real public run had a gradient norm of exactly zero,
+    rising from 40% to 93% across training. That is not a decay -- those steps
+    did not move the policy at all, and the rollouts were still paid for."""
+    values = [0.0 if i % 10 else 13.4 for i in range(500)]
+    finding = diagnose(run_from_records(_with_grad(values))).by_name("gradient_pathology")
+    assert finding.severity is Severity.CRITICAL
+    assert "exactly zero gradient" in finding.summary
+    assert finding.metrics["zero_grad_step_frac"] > 0.85
+    # These are genuinely wasted rollouts, unlike truncated ones.
+    assert finding.wasted_fraction and finding.wasted_fraction > 0.85
+
+
+def test_occasional_zeros_are_not_alarming():
+    values = [0.0 if i % 50 == 0 else 0.5 for i in range(500)]
+    finding = diagnose(run_from_records(_with_grad(values))).by_name("gradient_pathology")
+    assert finding.severity is Severity.OK

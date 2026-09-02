@@ -5,6 +5,11 @@ almost nobody reads it until after a crash. Three things worth catching:
 
 * **NaN / inf** -- the run is already dead; every step after the first NaN is
   wasted wall-clock.
+* **Exactly-zero updates** -- steps whose gradient norm is not small but
+  literally ``0.0``. In GRPO that means every rollout in every group scored the
+  same, so the centred advantage was zero. You generated and paid for those
+  rollouts and moved the policy not at all. On one real public run this was 88%
+  of steps, rising from 40% at the start to 93% at the end.
 * **Vanishing gradient** -- the norm decays towards zero while the loss does
   not. In GRPO this is usually downstream of zero-variance groups: no advantage
   spread means no gradient, no matter how many tokens you generate.
@@ -22,7 +27,19 @@ from ..schema import GRAD_NORM, POLICY_LOSS, ZERO_VAR_GROUP_FRAC, Run
 from .base import Detector, Finding, Severity
 
 _SPIKE_SIGMA = 8.0
+#: A spike must also be materially larger than the typical step, not merely a
+#: statistical outlier. On a tightly clustered series the MAD is tiny, so 8
+#: robust sigmas can be reached by a value only twice the median -- which is not
+#: a spike by any useful definition. Found on a real run where every "spike" was
+#: 2x the median.
+_SPIKE_RATIO = 3.0
 _VANISH_RATIO = 0.05  # current norm below 5% of the early-run norm
+#: Fraction of steps with a gradient norm of exactly zero that is worth
+#: reporting. Exact zeros are discrete dead updates, not a decay, and in GRPO
+#: they are the fingerprint of degenerate groups.
+_ZERO_STEP_INFO = 0.20
+_ZERO_STEP_WARN = 0.40
+_ZERO_STEP_CRIT = 0.70
 
 
 class GradientPathology(Detector):
@@ -73,6 +90,46 @@ class GradientPathology(Detector):
                 "on the advantage tensor each step so you fail loudly instead of silently.",
             ]
 
+        # -- exactly-zero updates ------------------------------------------
+        # Distinct from a decay: these steps did not move the policy at all.
+        # The rollouts were still generated and paid for.
+        zero_frac = float(np.mean(grad == 0.0))
+        metrics["zero_grad_step_frac"] = zero_frac
+        if zero_frac >= _ZERO_STEP_INFO:
+            nonzero = grad[grad > 0]
+            typical = float(np.median(nonzero)) if nonzero.size else 0.0
+            early = float(np.mean(grad[: max(grad.size // 4, 1)] == 0.0))
+            late = float(np.mean(grad[-max(grad.size // 4, 1) :] == 0.0))
+            evidence.append(
+                f"{zero_frac:.0%} of steps have a gradient norm of exactly zero "
+                f"({early:.0%} in the first quarter, {late:.0%} in the last); when the "
+                f"update does fire its norm is typically {typical:.3g}"
+            )
+            severity = max(
+                severity,
+                Severity.CRITICAL
+                if zero_frac >= _ZERO_STEP_CRIT
+                else Severity.WARNING
+                if zero_frac >= _ZERO_STEP_WARN
+                else Severity.INFO,
+            )
+            summaries.append(
+                f"{zero_frac:.0%} of optimiser steps produced exactly zero gradient. Those "
+                "rollouts were generated and paid for and moved the policy not at all."
+            )
+            prescription += [
+                "In GRPO an exactly-zero update almost always means every rollout in every "
+                "group scored the same, so the centred advantage was zero. Log "
+                "`frac_reward_zero_std` to confirm, then fix the group variance rather than "
+                "the optimiser.",
+                "If the zero fraction is rising through the run, your data has become too "
+                "easy (or too hard) for the current policy -- filter by measured pass rate "
+                "and refresh the pool.",
+            ]
+            zero_waste = zero_frac
+        else:
+            zero_waste = None
+
         # -- vanishing -----------------------------------------------------
         g0 = float(np.median(stats.head(grad)))
         g_now = float(np.median(stats.tail(grad, frac=0.1, minimum=3)))
@@ -105,7 +162,9 @@ class GradientPathology(Detector):
 
         # -- spikes --------------------------------------------------------
         z = stats.robust_z(grad)
-        spikes = np.where(z > _SPIKE_SIGMA)[0]
+        median = float(np.median(grad))
+        big_enough = grad > max(median, 1e-12) * _SPIKE_RATIO
+        spikes = np.where((z > _SPIKE_SIGMA) & big_enough)[0]
         metrics["n_spikes"] = int(spikes.size)
         if spikes.size:
             worst = int(spikes[np.argmax(grad[spikes])])
@@ -134,5 +193,10 @@ class GradientPathology(Detector):
                 metrics=metrics,
             )
         return self.finding(
-            severity, " ".join(summaries), evidence=evidence, prescription=prescription, metrics=metrics
+            severity,
+            " ".join(summaries),
+            evidence=evidence,
+            prescription=prescription,
+            metrics=metrics,
+            wasted_fraction=zero_waste,
         )
