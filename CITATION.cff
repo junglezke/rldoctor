@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+title: "rldoctor: diagnostics for GRPO/RLVR training runs"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - alias: junglezke
+repository-code: "https://github.com/junglezke/rldoctor"
+abstract: >-
+  rldoctor reads the metric log of a reinforcement-learning post-training run and
+  reports which documented failure mode it is exhibiting, what that failure has cost
+  in GPU-hours, and what configuration change addresses it. It covers zero-variance
+  GRPO groups, entropy collapse, reward/eval divergence, length hacking, truncation,
+  clip saturation, KL drift, gradient pathologies, reward-component imbalance and
+  learning plateaus, working from logs produced by verl, TRL, or any training loop,
+  with no instrumentation required.
+keywords:
+  - reinforcement learning
+  - RLHF
+  - RLVR
+  - GRPO
+  - large language models
+  - training diagnostics
+  - reward hacking
+license: Apache-2.0
+version: 0.1.0

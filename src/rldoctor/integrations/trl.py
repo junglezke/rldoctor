@@ -20,7 +20,6 @@ from typing import Any, Mapping, Optional, Sequence
 from ..detectors.base import Severity
 from ..live import DEFAULT_MIN_STEPS, LiveMonitor
 
-
 try:  # pragma: no cover - depends on the user's environment
     from transformers import TrainerCallback as _TrainerCallback
 

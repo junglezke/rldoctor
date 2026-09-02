@@ -1,0 +1,128 @@
+
+  rldoctor 0.1.0                                                  sim:saturated_groups
+  ────────────────────────────────────────────────────────────────────────────────────
+  400 steps · 14 metrics · GRPO · Qwen2.5-7B-Instruct · G=8 · 8x H100
+
+  ▍ ~75% of this run's rollout compute produced no learning signal = 19 GPU-hours =
+    about $57 at $2.99/GPU-hour
+
+  ── FINDINGS ────────────────────────────────────────────────────────────────────────
+
+   WARN  Zero-variance groups (wasted rollouts)
+        The task is too easy: most groups are all-correct and contribute no gradient.
+        75% of your rollout budget produces exactly zero policy gradient.
+
+        evidence
+          · measured zero-variance group fraction over the last quarter of the run:
+            74.5% (median of 100 steps)
+          · effective sample efficiency: 25.5% -- you pay for 3.9 rollouts per rollout
+            that produces gradient
+          · trend is rising (+2.57e-03/step, Mann-Kendall p<1e-16), so the waste is
+            getting worse
+          · mean pass rate is 95% -- the model has outgrown this data
+
+        do this
+          1. Raise task difficulty -- filter out prompts the current policy already
+             solves with pass rate > 0.9 and refresh the training pool.
+          2. Adopt a curriculum keyed on measured pass rate; target the 0.3-0.7 band
+             where group variance, and therefore gradient, is maximal.
+          3. Enable dynamic sampling (DAPO): keep resampling prompts until each group
+             has non-zero reward variance. verl: `algorithm.filter_groups.enable=True`;
+             TRL: see the dynamic-sampling issue tracker for the current flag.
+
+        refs
+          · Yu et al., DAPO: An Open-Source LLM Reinforcement Learning System at Scale
+            (arXiv:2503.14476) -- dynamic sampling
+          · Advantage Collapse in Group Relative Policy Optimization: Diagnosis and
+            Mitigation (arXiv:2605.21125)
+          · TRL logs this directly as `frac_reward_zero_std`
+
+   WARN  Entropy collapse (exploration exhausted)
+        Entropy is collapsing and will hit the exploration floor in roughly 237 steps.
+        Reward has already plateaued.
+
+        evidence
+          · entropy fell from 0.6756 to 0.1526 over 399 steps (77% of the initial
+            exploration budget spent)
+          · still falling in the recent half at -5.966e-04/step (Mann-Kendall p<1e-16,
+            tau=-0.89)
+          · extrapolating the exponential fit, entropy reaches the floor (0.0676) in
+            about 237 steps -- roughly 2.7 GPU-wall-clock hours from now
+          · abrupt drop detected at step 80: 0.5828 -> 0.2307 (16.7 robust sigma). A
+            cliff rather than a slope usually means a config change, a resume from
+            checkpoint, or a reward-function bug landing mid-run.
+          · held-out eval trend over the same window: +1.973e-05/step (p=1) -- reward
+            has stopped improving, so this decay is buying nothing
+
+        do this
+          1. Investigate the abrupt drop first. Diff your config around that step and
+             check for a resumed checkpoint or a changed reward function before tuning
+             anything.
+          2. Decouple the clip bounds (DAPO 'clip-higher'): raise `clip_eps_high` to
+             ~0.28 while leaving `clip_eps_low` at 0.2. Low-probability tokens are
+             currently clipped away before they can be reinforced, which is a primary
+             driver of entropy collapse.
+          3. Add a small entropy bonus (start at 1e-3 and tune by an order of
+             magnitude). Treat it as a floor-holding device, not a cure -- a large bonus
+             trades collapse for a different instability.
+          4. Reward has plateaued while entropy keeps falling: this run is finished
+             learning. Stop it, keep the best checkpoint, and spend the remaining budget
+             on harder data.
+          5. Raise rollout temperature slightly, or sample with a higher top-p, to
+             restore group diversity without touching the loss.
+
+        refs
+          · Cui et al., The Entropy Mechanism of Reinforcement Learning for Reasoning
+            Language Models (Clip-Cov / KL-Cov)
+          · Yu et al., DAPO (arXiv:2503.14476) -- clip-higher as an entropy remedy
+          · Understanding and Preventing Entropy Collapse in RLVR with On-Policy
+            Regularisation (arXiv:2605.11491)
+
+   INFO  PPO clip saturation / asymmetry
+        Clip fraction is 10%, on the high side.
+
+        evidence
+          · 10.2% of token updates are being clipped away (trend +1.03e-04/step,
+            p<1e-16)
+          · one-sided clipping: lower bound 5.18%, upper bound 4.84% (ratio 1.1x)
+
+        refs
+          · Schulman et al., Proximal Policy Optimization Algorithms (arXiv:1707.06347)
+          · Yu et al., DAPO (arXiv:2503.14476) -- decoupled clip bounds ('clip-higher')
+
+   INFO  Reward-eval divergence (verifier gaming)
+        Training reward and held-out score have drifted apart (gap +3.15, rho=+0.99).
+        Worth an eyeball before you trust the reward curve.
+
+        evidence
+          · normalised training reward has moved +8.67 from its start; held-out score
+            has moved +5.49 -- hacking gap +3.15
+          · rank correlation between training reward and held-out score: rho=+0.99 over
+            17 evaluations
+          · the gap is widening (+8.91e-03/step, p=1.4e-06)
+
+        do this
+          1. Read 20 high-reward rollouts end to end. Reward hacks are almost always
+             obvious on inspection and almost never visible in aggregate metrics.
+          2. Audit the verifier, not the model. For code tasks, check whether your tests
+             accept known-wrong patches; for rubric rewards, check for keyword stuffing.
+          3. Hold out a second verifier that grades the same task differently
+             (isomorphic verification). A gap that exists against one grader and not
+             another localises the exploit to the grader.
+          4. Add an explicit anti-hack penalty for the specific exploit once you have
+             identified it, and re-measure the gap rather than assuming it closed.
+          5. Roll back to the checkpoint before the gap opened -- later checkpoints have
+             already been shaped by the exploit.
+
+        refs
+          · Auditing Reward Hackability in Code RL Training Environments
+            (arXiv:2606.16062)
+          · LLMs Gaming Verifiers: RLVR can Lead to Reward Hacking (arXiv:2604.15149)
+          · Reward Hacking in the Era of Large Models: Mechanisms and Emergent
+            Behaviours (arXiv:2604.13602)
+
+  ── CHECKS ──────────────────────────────────────────────────────────────────────────
+
+  passed: length_pathology, kl_drift, gradient_pathology, reward_composition,
+  plateau
+

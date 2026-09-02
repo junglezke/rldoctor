@@ -192,6 +192,13 @@ def simulate(
             "completions/clipped_ratio": round(float(np.clip(truncation[i] + rng.normal(0, 0.004), 0, 1)), 6),
             "learning_rate": 1e-6,
             "step_time": round(time_per_step + float(rng.normal(0, 1.5)), 3),
+            # Tokens/s across the cluster: batch x group x response length, over
+            # step time. Logged by verl as `perf/throughput`.
+            "perf/throughput": round(
+                512 * group_size * float(length[i]) / max(time_per_step, 1e-6)
+                * float(np.exp(rng.normal(0, 0.03))),
+                1,
+            ),
             "rewards/correctness/mean": round(correctness + rng.normal(0, 0.01), 6),
             "rewards/format/mean": round(format_reward, 6),
         }
