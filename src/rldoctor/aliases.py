@@ -147,6 +147,32 @@ for _canon, _keys in ALIASES.items():
     _TOKENSET.setdefault(frozenset(_tokens(_canon)), _canon)
 
 
+#: Tails that carry no information on their own. ``rewards/x/mean`` and
+#: ``response_length/mean`` share the tail ``mean``, so matching on it maps
+#: unrelated metrics onto whichever canonical field happened to be registered
+#: first. Found by running against a real TRL ``trainer_state.json``, where it
+#: silently read a held-out accuracy series as the training reward.
+_GENERIC_TAILS = frozenset({"mean", "std", "max", "min", "avg", "sum", "count", "n", "value"})
+
+#: Prefixes marking a held-out metric. TRL writes ``eval_reward`` with an
+#: underscore while verl writes ``val/test_score`` with a slash, and treating
+#: only one of them as an eval prefix means the other's metrics get merged into
+#: the training series.
+_EVAL_PREFIXES = ("eval/", "eval_", "val/", "val_", "test/", "test_", "validation/", "validation_")
+
+#: Words that make an eval-prefixed key a *score* rather than an eval-split copy
+#: of some other training metric.
+_SCORE_WORDS = ("acc", "score", "reward", "pass", "solve", "correct")
+
+
+def _split_eval_prefix(key: str) -> Optional[str]:
+    """Return what follows an eval prefix, or None when there is none."""
+    for prefix in _EVAL_PREFIXES:
+        if key.startswith(prefix):
+            return key[len(prefix) :]
+    return None
+
+
 def _strip_split_prefix(key: str) -> str:
     """Drop a leading ``train/``/``training/`` split prefix.
 
@@ -174,19 +200,31 @@ def resolve(key: str) -> Optional[str]:
     if stripped in _EXACT:
         return _EXACT[stripped]
 
-    # Never let a held-out metric masquerade as a training metric.
-    is_eval = any(stripped.startswith(p) for p in ("eval/", "val/", "test/", "validation/"))
-    if is_eval:
-        tail = stripped.split("/", 1)[1] if "/" in stripped else stripped
-        if any(w in tail for w in ("acc", "score", "reward", "pass", "solve")):
+    # Never let a held-out metric masquerade as a training metric. An
+    # eval-prefixed key is either the held-out score we want, or an eval-split
+    # copy of a training metric we must not merge into the training series.
+    remainder = _split_eval_prefix(stripped)
+    if remainder is not None:
+        inner = _resolve_plain(remainder)
+        if inner not in (None, S.REWARD_MEAN):
+            return None  # eval-split copy of entropy, length, clip fraction, ...
+        if any(word in remainder for word in _SCORE_WORDS):
             return S.EVAL_SCORE
         return None
 
-    tail = stripped.rsplit("/", 1)[-1]
-    if tail in _SUFFIX:
+    return _resolve_plain(stripped)
+
+
+def _resolve_plain(key: str) -> Optional[str]:
+    """Suffix and token passes, with no eval handling."""
+    if key in _EXACT:
+        return _EXACT[key]
+
+    tail = key.rsplit("/", 1)[-1]
+    if tail in _SUFFIX and tail not in _GENERIC_TAILS:
         return _SUFFIX[tail]
 
-    token_key = frozenset(_tokens(stripped))
+    token_key = frozenset(_tokens(key))
     if token_key in _TOKENSET:
         return _TOKENSET[token_key]
 

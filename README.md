@@ -95,7 +95,8 @@ documented failure mode.
 # Nothing to instrument — read a run you already logged
 rldoctor diagnose wandb://my-team/my-project/3xk91abc
 
-# Or a TensorBoard directory, a JSONL log, a CSV
+# Or a HuggingFace checkpoint, a TensorBoard directory, a JSONL log, a CSV
+rldoctor diagnose ./checkpoint-1200/trainer_state.json
 rldoctor diagnose ./outputs/grpo-qwen7b/tensorboard
 rldoctor diagnose ./logs/train.jsonl --format html -o report.html
 ```
@@ -178,8 +179,52 @@ producing a worse report. Anything unresolved is reported rather than dropped:
   If one of those is a metric rldoctor should understand, please open an issue.
 ```
 
-Known-good with **verl**, **TRL**, and any loop that hands us a list of dicts. One
+Known-good with **verl**, **TRL** (including `trainer_state.json` from any HuggingFace checkpoint), and any loop that hands us a list of dicts. One
 required dependency: `numpy`.
+
+## Validated against a real run
+
+Point it at a HuggingFace checkpoint's `trainer_state.json` — every `checkpoint-N/`
+directory ships one, which makes it the most widely available real training log there
+is:
+
+```bash
+rldoctor diagnose ./checkpoint-1200/trainer_state.json
+```
+
+Run against a public GRPO checkpoint (1,227 logged steps, TRL, four reward components),
+it found two things worth acting on:
+
+- **100% of rollouts were truncated.** Not 99% — the clipped ratio's *minimum* over the
+  whole run was 0.992, and `completions/mean_terminated_length` was 0, meaning not one
+  completion ever reached an EOS token. Every reward in that run is partly a measurement
+  of the 8192-token cap.
+- **The best checkpoint was 161 steps before the end.** Training reward over the last
+  428 points has a Mann-Kendall p of 0.71 against a noise floor thirteen times the size
+  of the total move.
+
+It also correctly said nothing about the six checks that had no problem to report, and
+correctly skipped `kl_drift` because that run trains with no KL penalty.
+
+### What that exercise actually bought
+
+Two bugs, both of which the simulated corpus could never have found, and one of them the
+expensive kind:
+
+**A false positive.** The first run reported *"4 non-finite gradient norms — training is
+numerically dead from step 305"* on a run whose gradient norms were entirely finite. That
+log records eval metrics on a different cadence from training metrics, so the aligned
+series carries `nan` at every eval-only row — and the detector counted the padding.
+Every real run with a held-out eval has that shape. `nan` now means "not logged here",
+and only a value the log actually carried as non-finite counts.
+
+**An overclaim.** The cost banner announced *"~99% of this run's rollout compute produced
+no learning signal"*, driven entirely by the truncation rate. But a truncated rollout's
+advantage is *distorted*, not zero — it is not the same thing as a degenerate group,
+which genuinely buys nothing. Truncation no longer feeds the waste estimate.
+
+Both are regression-tested in `tests/test_real_log_shapes.py`. If you point this at a run
+and it tells you something wrong, that is the most valuable issue you can file.
 
 ## How it decides
 
@@ -247,7 +292,7 @@ none:
 ```bash
 git clone https://github.com/junglezke/rldoctor && cd rldoctor
 pip install -e ".[dev]"
-pytest                # 117 tests
+pytest                # 131 tests
 rldoctor selftest     # detection matrix across all 12 scenarios
 ruff check src tests
 python tools/make_banner.py   # regenerate the README image

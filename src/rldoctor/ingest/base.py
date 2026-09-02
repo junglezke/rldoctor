@@ -77,6 +77,7 @@ def run_from_records(
     components: Dict[str, np.ndarray] = {}
     unmapped: set = set()
     resolved_map: Dict[str, str] = {}
+    nonfinite: Dict[str, List[float]] = {}
 
     for idx, record in enumerate(records):
         for key, value in record.items():
@@ -96,6 +97,10 @@ def run_from_records(
                 unmapped.add(key)
                 continue
             resolved_map[key] = canonical
+            if not math.isfinite(number):
+                # Logged, and not a number. Distinct from "not logged".
+                nonfinite.setdefault(canonical, []).append(float(steps[idx]))
+                continue
             target = series.setdefault(canonical, np.full(n, np.nan))
             # First writer wins per step: the curated alias order puts the more
             # trustworthy key first (e.g. verl's task score before the
@@ -118,6 +123,7 @@ def run_from_records(
         name=name,
         source=source,
         unmapped_keys=sorted(unmapped),
+        nonfinite_steps=nonfinite,
     )
 
 
@@ -245,6 +251,21 @@ def load_json(path: str) -> Run:
     if isinstance(payload, list):
         return run_from_records(payload, name=os.path.basename(path), source=f"json:{path}")
     if isinstance(payload, dict):
+        # HuggingFace Trainer checkpoints: every `checkpoint-N/trainer_state.json`
+        # carries the full metric history. It is the most widely available real
+        # training log there is, and it needs no instrumentation at all.
+        if isinstance(payload.get("log_history"), list):
+            config = {
+                k: v
+                for k, v in payload.items()
+                if k != "log_history" and isinstance(v, (int, float, str, bool))
+            }
+            return run_from_records(
+                payload["log_history"],
+                config=config,
+                name=os.path.basename(os.path.dirname(os.path.abspath(path))) or "trainer_state",
+                source=f"trainer_state:{path}",
+            )
         history = payload.get("history") or payload.get("records") or payload.get("log")
         if isinstance(history, list):
             return run_from_records(
@@ -259,8 +280,9 @@ def load_json(path: str) -> Run:
 def load_run(uri: str, **kwargs: Any) -> Run:
     """Load a run from a path or URI, dispatching on shape.
 
-    Supported: ``*.jsonl``, ``*.json``, ``*.csv``, a TensorBoard event
-    directory, and ``wandb://entity/project/run_id``.
+    Supported: ``*.jsonl``, ``*.json`` (including a HuggingFace
+    ``trainer_state.json``), ``*.csv``, a TensorBoard event directory, and
+    ``wandb://entity/project/run_id``.
     """
     if uri.startswith("wandb://") or uri.startswith("https://wandb.ai/"):
         from .wandb_source import load_wandb

@@ -151,6 +151,14 @@ class Run:
     #: canonical field. Surfaced by ``rldoctor diagnose --verbose`` so users can
     #: tell us about naming drift instead of silently getting a worse report.
     unmapped_keys: List[str] = field(default_factory=list)
+    #: Steps at which a field was logged with a non-finite value, per field.
+    #:
+    #: This has to be tracked separately because `nan` in a series is ambiguous:
+    #: it means "not logged at this step" far more often than it means "the
+    #: model produced NaN". Real runs log eval metrics on a different cadence
+    #: from training metrics, so every such run has thousands of padding nans,
+    #: and a detector that counts them reports numerical death on a healthy job.
+    nonfinite_steps: Dict[str, List[float]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.steps = np.asarray(self.steps, dtype=float)

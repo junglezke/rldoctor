@@ -176,7 +176,12 @@ class LengthPathology(Detector):
             evidence=evidence,
             prescription=prescription,
             metrics=metrics,
-            wasted_fraction=trunc_now if trunc_now and trunc_now >= _TRUNC_WARN else None,
+            # Deliberately not reported as wasted rollout compute. A truncated
+            # rollout still carries signal -- its advantage is *distorted*, not
+            # zero -- so folding it into the waste estimate turns a defensible
+            # number into an overclaim. Zero-variance groups are the only thing
+            # that genuinely buys nothing.
+            wasted_fraction=None,
         )
 
 

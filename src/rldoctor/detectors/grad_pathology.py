@@ -35,8 +35,13 @@ class GradientPathology(Detector):
     ]
 
     def run(self, run: Run) -> Finding:
-        raw = run.series[GRAD_NORM]
-        n_nonfinite = int(np.sum(~np.isfinite(raw)))
+        # Only values the log actually carried as non-finite count. A `nan` in
+        # the aligned series usually means the metric was not logged at that
+        # step -- every run that evaluates on a different cadence from training
+        # is full of them -- and counting those reports numerical death on a
+        # perfectly healthy job.
+        nonfinite_at = run.nonfinite_steps.get(GRAD_NORM, [])
+        n_nonfinite = len(nonfinite_at)
         steps, grad = run.finite(GRAD_NORM)
         if steps.size < 8:
             return self.skip(f"only {steps.size} finite grad-norm observations; need at least 8")
@@ -48,18 +53,16 @@ class GradientPathology(Detector):
         severity = Severity.OK
 
         # -- NaN / inf -----------------------------------------------------
-        # Only count non-finite values that sit inside the logged range: a
-        # trailing gap usually just means the run stopped, not that it exploded.
         if n_nonfinite:
-            first_bad = int(np.argmax(~np.isfinite(raw)))
+            first_bad = min(nonfinite_at)
             severity = max(severity, Severity.CRITICAL)
             summaries.append(
                 f"{n_nonfinite} non-finite gradient norms, first at step "
-                f"{run.steps[first_bad]:.0f}. Training is numerically dead from that point."
+                f"{first_bad:.0f}. Training is numerically dead from that point."
             )
             evidence.append(
-                f"non-finite gradient norms at {n_nonfinite}/{raw.size} logged steps "
-                f"(first: step {run.steps[first_bad]:.0f})"
+                f"the log records a non-finite gradient norm at {n_nonfinite} step(s) "
+                f"(first: step {first_bad:.0f})"
             )
             prescription += [
                 "Resume from the last checkpoint before the first NaN -- everything after it is "
