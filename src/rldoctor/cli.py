@@ -14,6 +14,7 @@ from typing import List, Optional
 
 from . import __version__
 from .detectors.base import Severity
+from .report import emit
 
 _SEVERITY_CHOICES = ["info", "warning", "critical", "never"]
 
@@ -172,7 +173,7 @@ def _run_and_emit(run, args) -> int:
             handle.write(text)
         print(f"wrote {args.output}")
     else:
-        print(text)
+        emit(text)
 
     if args.verbose and run.unmapped_keys:
         print("\nunrecognised log keys:", file=sys.stderr)

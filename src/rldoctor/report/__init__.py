@@ -49,4 +49,21 @@ def render(diagnosis: Diagnosis, fmt: str = "terminal") -> str:
         ) from None
 
 
-__all__ = ["RENDERERS", "render", "render_json"]
+def emit(text: str) -> None:
+    """Print text a terminal may not be able to encode.
+
+    Reports can carry codepoints a legacy console code page cannot represent.
+    Losing a glyph is acceptable; raising UnicodeEncodeError instead of showing
+    the report is not.
+    """
+    import sys
+
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        text.encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        text = text.encode(encoding, errors="replace").decode(encoding, errors="replace")
+    print(text)
+
+
+__all__ = ["RENDERERS", "emit", "render", "render_json"]

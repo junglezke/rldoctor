@@ -41,9 +41,10 @@ __all__ = [
 
 def _print(self) -> None:  # pragma: no cover - thin delegation
     """Render this diagnosis to stdout. Attached here to keep report imports lazy."""
+    from .report import emit
     from .report.terminal import render
 
-    print(render(self))
+    emit(render(self))
 
 
 Diagnosis.print = _print  # type: ignore[attr-defined]
