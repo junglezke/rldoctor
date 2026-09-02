@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="741" height="539" viewBox="0 0 741 539" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,&quot;Liberation Mono&quot;,monospace" font-size="13">
+<rect width="741" height="539" rx="10" fill="#16161e"/>
+<circle cx="24" cy="22" r="6" fill="#f7768e"/>
+<circle cx="44" cy="22" r="6" fill="#e0af68"/>
+<circle cx="64" cy="22" r="6" fill="#9ece6a"/>
+<text x="371" y="27" fill="#565f89" font-size="12" text-anchor="middle">rldoctor diagnose wandb://my-team/my-project/3xk91abc</text>
+<text x="38.8" y="56.0" fill="#7dcfff" font-weight="600" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">rldoctor</text>
+<text x="106.0" y="56.0" fill="#565f89" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> 0.1.0</text>
+<text x="542.8" y="56.0" fill="#c0caf5" font-weight="600" textLength="168.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">sim:saturated_groups</text>
+<text x="38.8" y="75.0" fill="#565f89" textLength="672.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">────────────────────────────────────────────────────────────────────────────────</text>
+<text x="38.8" y="94.0" fill="#565f89" textLength="562.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">400 steps · 15 metrics · GRPO · Qwen2.5-7B-Instruct · G=8 · 8x H100</text>
+<text x="38.8" y="132.0" fill="#ff7a93" textLength="16.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">▍ </text>
+<text x="55.6" y="132.0" fill="#c0caf5" font-weight="600" textLength="604.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">~75% of this run&#x27;s rollout compute produced no learning signal = 19 GPU-</text>
+<text x="55.6" y="151.0" fill="#565f89" textLength="294.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">hours = about $57 at $2.99/GPU-hour</text>
+<text x="38.8" y="189.0" fill="#565f89" textLength="672.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">── FINDINGS ────────────────────────────────────────────────────────────────────</text>
+<text x="38.8" y="227.0" fill="#ff7a93" font-weight="600" textLength="50.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> CRIT </text>
+<text x="97.6" y="227.0" fill="#c0caf5" font-weight="600" textLength="319.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">Zero-variance groups (wasted rollouts)</text>
+<text x="22.0" y="246.0" fill="#c0caf5" textLength="630.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        The task is too easy: most groups are all-correct and contribute no</text>
+<text x="22.0" y="265.0" fill="#c0caf5" textLength="697.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">        gradient. 75% of your rollout budget produces exactly zero policy gradient.</text>
+<text x="89.2" y="303.0" fill="#565f89" font-weight="600" textLength="67.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve">evidence</text>
+<text x="106.0" y="322.0" fill="#565f89" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·</text>
+<text x="114.4" y="322.0" fill="#c0caf5" textLength="604.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> measured zero-variance group fraction over the last quarter of the run:</text>
+<text x="22.0" y="341.0" fill="#c0caf5" textLength="327.6" lengthAdjust="spacingAndGlyphs" xml:space="preserve">            75.2% (median of 100 steps)</text>
+<text x="106.0" y="360.0" fill="#565f89" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·</text>
+<text x="114.4" y="360.0" fill="#c0caf5" textLength="562.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> effective sample efficiency: 24.8% -- you pay for 4.0 rollouts per</text>
+<text x="22.0" y="379.0" fill="#c0caf5" textLength="352.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">            rollout that produces gradient</text>
+<text x="106.0" y="398.0" fill="#565f89" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·</text>
+<text x="114.4" y="398.0" fill="#c0caf5" textLength="604.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> trend is rising (+2.59e-03/step, Mann-Kendall p&lt;1e-16), so the waste is</text>
+<text x="22.0" y="417.0" fill="#c0caf5" textLength="210.0" lengthAdjust="spacingAndGlyphs" xml:space="preserve">            getting worse</text>
+<text x="106.0" y="436.0" fill="#565f89" textLength="8.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">·</text>
+<text x="114.4" y="436.0" fill="#c0caf5" textLength="487.2" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> mean pass rate is 95% -- the model has outgrown this data</text>
+<text x="89.2" y="474.0" fill="#565f89" font-weight="600" textLength="58.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">do this</text>
+<text x="106.0" y="493.0" fill="#565f89" textLength="16.8" lengthAdjust="spacingAndGlyphs" xml:space="preserve">1.</text>
+<text x="122.8" y="493.0" fill="#c0caf5" textLength="596.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve"> Raise task difficulty -- filter out prompts the current policy already</text>
+<text x="22.0" y="512.0" fill="#c0caf5" textLength="596.4" lengthAdjust="spacingAndGlyphs" xml:space="preserve">             solves with pass rate &gt; 0.9 and refresh the training pool.</text>
+</svg>

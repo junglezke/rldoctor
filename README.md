@@ -12,6 +12,9 @@ it has cost you so far, and what to change.
 [![Python](https://img.shields.io/pypi/pyversions/rldoctor.svg)](https://pypi.org/project/rldoctor/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
+
+<img src="docs/assets/report.svg" alt="rldoctor diagnosing a GRPO run: 75% of rollout compute produced no learning signal" width="100%">
+
 </div>
 
 ---
@@ -47,49 +50,41 @@ No GPUs, no account, no training run:
 
 ```bash
 pip install rldoctor
-rldoctor demo saturated_groups
+rldoctor demo reward_hacking
 ```
 
 ```
-  rldoctor 0.1.0                                                  sim:saturated_groups
-  ────────────────────────────────────────────────────────────────────────────────────
-  400 steps · 14 metrics · GRPO · Qwen2.5-7B-Instruct · G=8 · 8x H100
-
-  ▍ ~75% of this run's rollout compute produced no learning signal = 19 GPU-hours =
-    about $57 at $2.99/GPU-hour
-
-  ── FINDINGS ────────────────────────────────────────────────────────────────────────
-
-   WARN  Zero-variance groups (wasted rollouts)
-        The task is too easy: most groups are all-correct and contribute no gradient.
-        75% of your rollout budget produces exactly zero policy gradient.
+   CRIT  Reward-eval divergence (verifier gaming)
+        Training reward is climbing while the held-out score is flat. The policy is
+        optimising something your verifier rewards and your task does not.
 
         evidence
-          · measured zero-variance group fraction over the last quarter of the run:
-            74.5% (median of 100 steps)
-          · effective sample efficiency: 25.5% -- you pay for 3.9 rollouts per rollout
-            that produces gradient
-          · trend is rising (+2.57e-03/step, Mann-Kendall p<1e-16), so the waste is
-            getting worse
-          · mean pass rate is 95% -- the model has outgrown this data
+          · normalised training reward has moved +2.63 from its start; held-out
+            score has moved +0.13 -- hacking gap +2.25
+          · rank correlation between training reward and held-out score: rho=-0.05
+            over 17 evaluations
+          · the gap is widening (+9.61e-03/step, p=0.000463)
 
         do this
-          1. Raise task difficulty -- filter out prompts the current policy already
-             solves with pass rate > 0.9 and refresh the training pool.
-          2. Adopt a curriculum keyed on measured pass rate; target the 0.3-0.7 band
-             where group variance, and therefore gradient, is maximal.
-          3. Enable dynamic sampling (DAPO): keep resampling prompts until each group
-             has non-zero reward variance. verl: `algorithm.filter_groups.enable=True`
-
-        refs
-          · Yu et al., DAPO (arXiv:2503.14476) -- dynamic sampling
-          · Advantage Collapse in GRPO: Diagnosis and Mitigation (arXiv:2605.21125)
-          · TRL logs this directly as `frac_reward_zero_std`
+          1. Read 20 high-reward rollouts end to end. Reward hacks are almost always
+             obvious on inspection and almost never visible in aggregate metrics.
+          2. Audit the verifier, not the model. For code tasks, check whether your
+             tests accept known-wrong patches; for rubric rewards, check for keyword
+             stuffing.
+          3. Hold out a second verifier that grades the same task differently
+             (isomorphic verification). A gap that exists against one grader and not
+             another localises the exploit to the grader.
+          4. Add an explicit anti-hack penalty for the specific exploit once you
+             have identified it, and re-measure the gap rather than assuming it
+             closed.
+          5. Roll back to the checkpoint before the gap opened -- later checkpoints
+             have already been shaped by the exploit.
 ```
 
-Note the last line of the diagnosis. `advantage_collapse` does not just report the
-number — it separates **all-correct** from **all-wrong**. Same symptom, opposite fix,
-and the bare fraction cannot tell you which one you have.
+The banner above shows a different run: one where 75% of the rollout budget produced
+zero gradient. `advantage_collapse` does not just report that number — it separates
+**all-correct** from **all-wrong**. Same symptom, opposite fix, and the bare fraction
+cannot tell you which one you have.
 
 Twelve scenarios ship with the tool (`rldoctor demo --list`), each reproducing a
 documented failure mode.
@@ -255,6 +250,7 @@ pip install -e ".[dev]"
 pytest                # 117 tests
 rldoctor selftest     # detection matrix across all 12 scenarios
 ruff check src tests
+python tools/make_banner.py   # regenerate the README image
 ```
 
 `rldoctor selftest` is the honest summary of what the tool can and cannot catch — it runs
