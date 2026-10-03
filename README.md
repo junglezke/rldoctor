@@ -53,6 +53,8 @@ pip install rldoctor
 rldoctor demo reward_hacking
 ```
 
+Or the latest from `main`: `pip install git+https://github.com/junglezke/rldoctor`.
+
 ```
    CRIT  Reward-eval divergence (verifier gaming)
         Training reward is climbing while the held-out score is flat. The policy is
