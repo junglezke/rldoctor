@@ -109,6 +109,23 @@ class Plateau(Detector):
                 f"(p{stats.fmt_p(tr.p_value)})."
             )
 
+        # A plateau is a verdict on a run, and a run that is a fraction of the way
+        # through -- learning rate possibly still warming up -- has not had the
+        # chance to earn it. Found on a 25-step snapshot of a 300-step GRPO run.
+        max_steps = run.config.raw.get("max_steps")
+        if (
+            severity > Severity.INFO
+            and isinstance(max_steps, (int, float))
+            and max_steps > 0
+            and steps[-1] < 0.5 * max_steps
+        ):
+            severity = Severity.INFO
+            evidence.append(
+                f"the run is only {steps[-1] / max_steps:.0%} of the way to max_steps={int(max_steps)}, "
+                "so this is a note, not a verdict"
+            )
+            metrics["early_in_run"] = True
+
         if severity is Severity.OK:
             return self.finding(Severity.OK, summary, evidence=evidence, metrics=metrics)
 

@@ -332,7 +332,7 @@ none:
 ```bash
 git clone https://github.com/junglezke/rldoctor && cd rldoctor
 pip install -e ".[dev]"
-pytest                # 135 tests
+pytest                # 138 tests
 rldoctor selftest     # detection matrix across all 12 scenarios
 ruff check src tests
 python tools/make_banner.py   # regenerate the README image

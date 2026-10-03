@@ -278,3 +278,21 @@ def test_verl_file_logger_output_is_read(tmp_path):
 )
 def test_verl_validation_keys(key, expected):
     assert aliases.resolve(key) == expected
+
+
+def test_kl_of_exactly_zero_means_no_kl_term_not_a_pinned_policy():
+    """A public GRPO run logged kl = 0.0 at every step because it trained with
+    beta=0. Reporting "your KL penalty is doing the training" was wrong."""
+    records = [{"step": i, "kl": 0.0, "reward": 0.5 + 0.001 * i} for i in range(1, 60)]
+    finding = diagnose(run_from_records(records)).by_name("kl_drift")
+    assert finding.severity is Severity.OK
+    assert finding.metrics["no_kl_term"] is True
+
+
+def test_no_plateau_verdict_on_a_run_that_has_barely_started():
+    """A 25-step snapshot of a 300-step GRPO run was told it had "stopped
+    improving". A run 8% of the way through has not earned that verdict."""
+    records = [{"step": i, "reward": 0.6 + 0.01 * ((i * 7) % 5)} for i in range(1, 26)]
+    run = run_from_records(records, config={"max_steps": 300})
+    finding = diagnose(run).by_name("plateau")
+    assert finding.severity <= Severity.INFO

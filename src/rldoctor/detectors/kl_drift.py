@@ -40,6 +40,17 @@ class KLDrift(Detector):
         steps, kl = run.finite(KL)
         if steps.size < 8:
             return self.skip(f"only {steps.size} KL observations; need at least 8")
+        if np.all(kl == 0.0):
+            # Exactly zero at every step is not a policy pinned to its reference --
+            # no real KL estimate is ever exactly 0.0. It means the run has no KL
+            # term (TRL's GRPOTrainer defaults to beta=0) and logs a placeholder.
+            # Found on a public GRPO run, where the "your KL penalty is doing the
+            # training" verdict was simply wrong.
+            return self.ok(
+                "KL is exactly 0.0 at every step: this run has no KL term (beta=0), so there "
+                "is no drift to measure.",
+                metrics={"kl_max": 0.0, "no_kl_term": True},
+            )
 
         kl_now = float(np.median(stats.tail(kl, frac=0.1, minimum=3)))
         kl_max = float(np.nanmax(kl))

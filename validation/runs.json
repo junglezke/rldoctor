@@ -7,7 +7,9 @@
       "file": "trainer_state.json",
       "framework": "TRL GRPOTrainer",
       "what_is_true": "Every rollout hit the 8192-token cap: completions/clipped_ratio has a minimum of 0.992 over the run and completions/mean_terminated_length is 0 throughout. Gradient norms are all finite.",
-      "expect": {"length_pathology": "CRITICAL"}
+      "expect": {
+        "length_pathology": "CRITICAL"
+      }
     },
     {
       "id": "rlvr-qwen3-1.7b-bigmath",
@@ -15,7 +17,10 @@
       "file": "trainer_state.json",
       "framework": "TRL GRPOTrainer",
       "what_is_true": "29% of optimiser steps log a gradient norm of exactly 0.0; seven genuine spikes up to 24x the median; training reward flat over the last third.",
-      "expect": {"gradient_pathology": "WARNING", "plateau": "WARNING"}
+      "expect": {
+        "gradient_pathology": "WARNING",
+        "plateau": "WARNING"
+      }
     },
     {
       "id": "grpo-qwen3-1.7b-math345",
@@ -31,7 +36,19 @@
       "file": "trainer_state.json",
       "framework": "TRL GRPOTrainer",
       "what_is_true": "88% of optimiser steps log a gradient norm of exactly 0.0, rising from 40% in the first quarter to 93% in the last. frac_reward_zero_std is not logged.",
-      "expect": {"gradient_pathology": "CRITICAL"}
+      "expect": {
+        "gradient_pathology": "CRITICAL"
+      }
+    },
+    {
+      "id": "gemma-3-12b-grpo-short",
+      "source": "https://huggingface.co/WMTH-100d2exam/gemma-3-12b-it-matura-history-sft-grpo-closed-lora-r32",
+      "file": "trainer_state.json",
+      "framework": "TRL GRPOTrainer",
+      "what_is_true": "A 25-step snapshot of a 300-step GRPO run with beta=0: kl is logged as exactly 0.0 throughout (no KL term, not a pinned policy); half of all groups are degenerate.",
+      "expect": {
+        "advantage_collapse": "WARNING"
+      }
     }
   ]
 }

@@ -3,6 +3,15 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed, found on a public GRPO run
+
+- `kl_drift` read a KL of exactly 0.0 at every step as a policy pinned to its
+  reference. It means the run has no KL term (TRL defaults to `beta=0`); now OK.
+- `plateau` no longer issues a warning on a run less than half way to `max_steps`.
+- A fifth public run added to `validation/`.
+
 ## [0.1.0] — 2026-10-03
 
 First public release.
