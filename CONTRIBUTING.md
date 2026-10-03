@@ -58,7 +58,7 @@ python validation/fetch.py
 python validation/run.py --check
 ```
 
-The simulated scenarios tell you a detector *can* fire. The four public runs in
+The simulated scenarios tell you a detector *can* fire. The five public runs in
 `validation/runs.json` tell you whether it fires on runs that exist. If a verdict moves,
 either the new verdict is right -- update `runs.json` and say why in the commit -- or the
 change broke something real. Adding a public run you know the ground truth for is one of

@@ -211,7 +211,7 @@ directory ships one, which makes it the most widely available real training log 
 rldoctor diagnose ./checkpoint-1200/trainer_state.json
 ```
 
-Run against **four public GRPO checkpoints** (89 to 5,001 logged steps; 1.5s for the
+Run against **five public GRPO checkpoints** (25 to 5,001 logged steps; 1.5s for the
 largest), it found:
 
 | run | verdict |
@@ -220,6 +220,7 @@ largest), it found:
 | RLVR-qwen3-1.7B-hotpot | **88% of optimiser steps produced a gradient norm of exactly zero**, rising from 40% in the first quarter to 93% in the last. Those rollouts were generated, paid for, and moved the policy not at all. That run does not log `frac_reward_zero_std`, so the group-variance check could not run — the gradient norm gave it away instead. |
 | RLVR-qwen3-1.7B-bigmath | 29% zero-gradient steps, plus a reward plateau. |
 | grpo-qwen3-1.7B-math345 | Nothing above INFO. 48% of groups measurably degenerate, which on an 80-step run is worth knowing but not worth an alarm. |
+| gemma-3-12b GRPO (25-step snapshot) | Half of all groups degenerate. Also the source of two fixes: it logs `kl = 0.0` at every step because it trains with `beta=0` -- which the KL check used to call "a policy pinned to its reference" -- and it was told it had plateaued while 8% of the way through its run. |
 
 ### What that exercise actually bought
 
@@ -251,7 +252,7 @@ verl writes `val/test_score` with a slash, and handling only the slash form mean
 `eval_rewards/accuracy_reward/mean` — a held-out accuracy — was being read as the
 *training* reward, which would have inverted the reward-hacking check.
 
-All of it is pinned in `tests/test_real_log_shapes.py`, and the four runs themselves are
+All of it is pinned in `tests/test_real_log_shapes.py`, and the five runs themselves are
 re-diagnosed in CI whenever detector code changes (`validation/`): the raw logs are fetched
 from their public sources rather than committed, and a change that moves a real-run
 verdict fails the build. If you point this at a run and it
@@ -332,7 +333,7 @@ none:
 ```bash
 git clone https://github.com/junglezke/rldoctor && cd rldoctor
 pip install -e ".[dev]"
-pytest                # 138 tests
+pytest                # 143 tests
 rldoctor selftest     # detection matrix across all 12 scenarios
 ruff check src tests
 python tools/make_banner.py   # regenerate the README image

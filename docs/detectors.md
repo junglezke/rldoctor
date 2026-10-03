@@ -7,7 +7,7 @@ If you disagree with a number, that is a feature: the intent is that you can arg
 threshold rather than with the tool. Open an issue with the run that changed your mind.
 
 **A note on all of them:** thresholds are calibrated against documented failure modes,
-against the twelve simulated scenarios in `rldoctor/simulate.py`, and against four public
+against the twelve simulated scenarios in `rldoctor/simulate.py`, and against five public
 GRPO training logs (see the README). Four runs is enough to have found three real bugs and
 is nowhere near enough to be a calibration set. They remain a starting point informed by
 the literature, and the honest way to use them is as a prompt to look, not as a verdict to
