@@ -3,16 +3,7 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
-
-### Fixed, found on a public GRPO run
-
-- `kl_drift` read a KL of exactly 0.0 at every step as a policy pinned to its
-  reference. It means the run has no KL term (TRL defaults to `beta=0`); now OK.
-- `plateau` no longer issues a warning on a run less than half way to `max_steps`.
-- A fifth public run added to `validation/`.
-
-## [0.1.0] — 2026-10-03
+## [0.1.0] — 2026-10-04
 
 First public release.
 
@@ -45,3 +36,5 @@ First public release.
 - Statistical outliers only 2x the median were reported as gradient spikes.
 - Truncation was counted as wasted rollout compute, producing an indefensible "99%".
 - TRL's `eval_` prefix was not recognised, so held-out metrics leaked into training series.
+- A KL of exactly 0.0 at every step (a run with no KL term) was read as a pinned policy.
+- A plateau was declared on a run less than half way to `max_steps`.
