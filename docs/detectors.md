@@ -8,7 +8,7 @@ threshold rather than with the tool. Open an issue with the run that changed you
 
 **A note on all of them:** thresholds are calibrated against documented failure modes,
 against the twelve simulated scenarios in `rldoctor/simulate.py`, and against five public
-GRPO training logs (see the README). Four runs is enough to have found three real bugs and
+GRPO training logs (see the README). Five runs is enough to have found five real bugs and
 is nowhere near enough to be a calibration set. They remain a starting point informed by
 the literature, and the honest way to use them is as a prompt to look, not as a verdict to
 act on blindly.
