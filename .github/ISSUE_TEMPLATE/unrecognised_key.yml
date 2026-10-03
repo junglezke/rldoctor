@@ -1,0 +1,22 @@
+name: Unrecognised metric key
+description: rldoctor --verbose listed a key from your framework that it should understand.
+labels: [aliases]
+body:
+  - type: input
+    id: key
+    attributes:
+      label: The key, exactly as logged
+      placeholder: actor/entropy_mean
+    validations:
+      required: true
+  - type: input
+    id: meaning
+    attributes:
+      label: What it measures
+    validations:
+      required: true
+  - type: input
+    id: framework
+    attributes:
+      label: Framework and version
+      placeholder: verl 0.6

@@ -53,7 +53,7 @@ def _read_scalars(path: str) -> Dict[str, list]:
     if frame is None or len(frame) == 0:
         return {}
     out: Dict[str, list] = defaultdict(list)
-    for tag, step, value in zip(frame["tag"], frame["step"], frame["value"]):
+    for tag, step, value in zip(frame["tag"], frame["step"], frame["value"], strict=True):
         out[str(tag)].append((int(step), float(value)))
     return dict(out)
 

@@ -1,0 +1,37 @@
+{
+  "_comment": "Public training logs rldoctor is validated against. Raw logs are downloaded into validation/.cache/ (gitignored) by fetch.py and never committed: they belong to their authors. `expect` pins the verdict at WARNING or above, so a change that alters a real-run verdict fails `python validation/run.py --check`.",
+  "runs": [
+    {
+      "id": "openthinker3-7b-grpo-de",
+      "source": "https://huggingface.co/DGurgurov/OpenThinker3-7B-SFT-GRPO-DE",
+      "file": "trainer_state.json",
+      "framework": "TRL GRPOTrainer",
+      "what_is_true": "Every rollout hit the 8192-token cap: completions/clipped_ratio has a minimum of 0.992 over the run and completions/mean_terminated_length is 0 throughout. Gradient norms are all finite.",
+      "expect": {"length_pathology": "CRITICAL"}
+    },
+    {
+      "id": "rlvr-qwen3-1.7b-bigmath",
+      "source": "https://huggingface.co/juwon1105/RLVR-qwen3-1.7B-bigmathdigits5000",
+      "file": "trainer_state.json",
+      "framework": "TRL GRPOTrainer",
+      "what_is_true": "29% of optimiser steps log a gradient norm of exactly 0.0; seven genuine spikes up to 24x the median; training reward flat over the last third.",
+      "expect": {"gradient_pathology": "WARNING", "plateau": "WARNING"}
+    },
+    {
+      "id": "grpo-qwen3-1.7b-math345",
+      "source": "https://huggingface.co/logan7000/grpo-qwen3-1p7b-math345-best",
+      "file": "trainer_state.json",
+      "framework": "TRL GRPOTrainer",
+      "what_is_true": "Short (80-step) run with tightly clustered gradient norms -- the largest is 2x the median, which is not a spike. Nothing warrants a warning.",
+      "expect": {}
+    },
+    {
+      "id": "rlvr-qwen3-1.7b-hotpot",
+      "source": "https://huggingface.co/juwon1105/RLVR-qwen3-1.7B-hotpot5000",
+      "file": "trainer_state.json",
+      "framework": "TRL GRPOTrainer",
+      "what_is_true": "88% of optimiser steps log a gradient norm of exactly 0.0, rising from 40% in the first quarter to 93% in the last. frac_reward_zero_std is not logged.",
+      "expect": {"gradient_pathology": "CRITICAL"}
+    }
+  ]
+}

@@ -63,7 +63,7 @@ def run_from_records(
     every 50 steps, say) are represented as ``nan`` at the steps where they are
     absent, which keeps every series index-aligned with ``steps``.
     """
-    records = [r for r in records if isinstance(r, Mapping)]
+    records = [_unwrap(r) for r in records if isinstance(r, Mapping)]
     if not records:
         raise ValueError("no records to ingest")
 
@@ -125,6 +125,24 @@ def run_from_records(
         unmapped_keys=sorted(unmapped),
         nonfinite_steps=nonfinite,
     )
+
+
+#: Keys under which some loggers nest the metric dict. verl's ``FileLogger``
+#: (``trainer.logger=['file']``) writes ``{"step": N, "data": {...}}`` -- read
+#: naively, every metric is one level too deep and the run comes back empty.
+_NESTED_METRIC_KEYS = ("data", "metrics", "scalars", "logs")
+
+
+def _unwrap(record: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Lift a nested metric dict to the top level, keeping the step key."""
+    for key in _NESTED_METRIC_KEYS:
+        nested = record.get(key)
+        if isinstance(nested, Mapping):
+            flat = {k: v for k, v in record.items() if k != key}
+            for inner_key, value in nested.items():
+                flat.setdefault(inner_key, value)
+            return flat
+    return record
 
 
 def _extract_steps(records: Sequence[Mapping[str, Any]]) -> np.ndarray:

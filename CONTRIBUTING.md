@@ -49,6 +49,21 @@ proves it stays quiet otherwise. `pytest tests/test_detectors.py` runs the whole
 - **Uses the robust helpers in `stats.py`.** Curves are noisy and heavy-tailed; means and
   OLS slopes over-react to the handful of catastrophic steps every real run contains.
 
+## Changing a threshold
+
+Run the real-run validation before and after:
+
+```bash
+python validation/fetch.py
+python validation/run.py --check
+```
+
+The simulated scenarios tell you a detector *can* fire. The four public runs in
+`validation/runs.json` tell you whether it fires on runs that exist. If a verdict moves,
+either the new verdict is right -- update `runs.json` and say why in the commit -- or the
+change broke something real. Adding a public run you know the ground truth for is one of
+the most useful contributions there is.
+
 ## Development
 
 ```bash

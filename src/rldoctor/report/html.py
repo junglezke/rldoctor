@@ -207,7 +207,7 @@ def _sparkline(x: np.ndarray, y: np.ndarray, width: int = 190, height: int = 40)
 
     points = " ".join(
         f"{(xi - x_lo) / x_span * width:.2f},{height - (yi - lo) / span * height:.2f}"
-        for xi, yi in zip(x, y)
+        for xi, yi in zip(x, y, strict=True)
     )
     return (
         f"<svg viewBox='0 0 {width} {height}' width='100%' height='{height}' "

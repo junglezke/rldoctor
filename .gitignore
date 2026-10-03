@@ -12,3 +12,6 @@ htmlcov/
 venv/
 *.html
 !docs/**/*.html
+
+# Public training logs used for validation: other people's data, fetched on demand.
+validation/.cache/

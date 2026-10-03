@@ -95,8 +95,9 @@ documented failure mode.
 # Nothing to instrument — read a run you already logged
 rldoctor diagnose wandb://my-team/my-project/3xk91abc
 
-# Or a HuggingFace checkpoint, a TensorBoard directory, a JSONL log, a CSV
+# Or a HuggingFace checkpoint, verl's file logger, a TensorBoard directory, a JSONL, a CSV
 rldoctor diagnose ./checkpoint-1200/trainer_state.json
+rldoctor diagnose ./my_project/my_experiment.jsonl     # verl: trainer.logger='["console","file"]'
 rldoctor diagnose ./outputs/grpo-qwen7b/tensorboard
 rldoctor diagnose ./logs/train.jsonl --format html -o report.html
 ```
@@ -139,6 +140,23 @@ On the bundled `entropy_collapse` scenario, the live monitor flags the run at **
 124 of 400** — with a projected step at which exploration runs out, and the DAPO
 clip-higher fix, before three quarters of the budget is spent.
 
+To be precise about what that is: it is *during*, not *before*. The live monitor sees a
+failure once it is statistically visible in the metrics, which is usually well before
+anyone reads the dashboard and well after the onset. Whether scalar training metrics can
+give genuine *early* warning of reward hacking at a usable false-positive rate is an open
+question — independent work proposing onset hooks for verl reports that these signals
+reliably audit hacking after the fact but do not reliably warn ahead of it
+([verl#7004](https://github.com/verl-project/verl/issues/7004)). `rldoctor` does not
+claim to have solved that.
+
+On **verl**, add the file logger and point `rldoctor` at the result — while the run is
+going, or afterwards:
+
+```bash
+python -m verl.trainer.main_ppo ... trainer.logger='["console","file"]'
+rldoctor diagnose ./<project_name>/<experiment_name>.jsonl
+```
+
 ### In CI
 
 ```bash
@@ -179,8 +197,10 @@ producing a worse report. Anything unresolved is reported rather than dropped:
   If one of those is a metric rldoctor should understand, please open an issue.
 ```
 
-Known-good with **verl**, **TRL** (including `trainer_state.json` from any HuggingFace checkpoint), and any loop that hands us a list of dicts. One
-required dependency: `numpy`.
+Known-good with **verl** (W&B, TensorBoard, or its `file` logger, including
+`val-core/<source>/acc/mean@N` validation metrics), **TRL** (including
+`trainer_state.json` from any HuggingFace checkpoint), and any loop that hands us a list
+of dicts. One required dependency: `numpy`.
 
 ## Validated against real runs
 
@@ -231,7 +251,10 @@ verl writes `val/test_score` with a slash, and handling only the slash form mean
 `eval_rewards/accuracy_reward/mean` — a held-out accuracy — was being read as the
 *training* reward, which would have inverted the reward-hacking check.
 
-All of it is pinned in `tests/test_real_log_shapes.py`. If you point this at a run and it
+All of it is pinned in `tests/test_real_log_shapes.py`, and the four runs themselves are
+re-diagnosed in CI whenever detector code changes (`validation/`): the raw logs are fetched
+from their public sources rather than committed, and a change that moves a real-run
+verdict fails the build. If you point this at a run and it
 tells you something wrong, that is the most valuable issue you can file.
 
 ## How it decides
@@ -280,6 +303,15 @@ none:
 - **It is not a monitoring service.** No daemon, no account, no telemetry, no network
   calls. It reads a log and prints a report.
 
+## How it relates to other tools
+
+| | what it does | how `rldoctor` differs |
+|---|---|---|
+| **W&B / TensorBoard** | shows you the curves | tells you what the curves mean, and what to change |
+| [**RL-Insight**](https://github.com/verl-project/rl-insight) | verl's online observability stack — Prometheus, Grafana, hardware and throughput dashboards | it is infrastructure for *seeing* a run; `rldoctor` is a diagnosis of *what is wrong with it*. Complementary — export to both. |
+| [**Flight Recorder**](https://github.com/Aarav500/flight-recorder) | research prototype for reward-hacking *onset* detection from rollout geometry, hooked into the trainer | narrower and deeper on one question; needs rollout batches. `rldoctor` covers nine failure modes from the scalar log you already have, with no hooks. |
+| Papers ([DAPO](https://arxiv.org/abs/2503.14476), [Clip-Cov / KL-Cov](https://arxiv.org/abs/2505.22617), …) | describe the failures and the fixes | `rldoctor` is the thing that tells you which one you have. Each detector cites the paper its threshold comes from. |
+
 ## Design principles
 
 1. **A false positive costs more than a false negative.** A tool that cries wolf gets
@@ -304,6 +336,7 @@ pytest                # 135 tests
 rldoctor selftest     # detection matrix across all 12 scenarios
 ruff check src tests
 python tools/make_banner.py   # regenerate the README image
+python validation/fetch.py && python validation/run.py --check   # the real public runs
 ```
 
 `rldoctor selftest` is the honest summary of what the tool can and cannot catch — it runs

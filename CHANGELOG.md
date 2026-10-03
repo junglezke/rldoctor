@@ -3,7 +3,7 @@
 All notable changes to this project are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [0.1.0] — unreleased
+## [0.1.0] — 2026-10-03
 
 First public release.
 
@@ -24,3 +24,15 @@ First public release.
 - `LiveMonitor` and `RLDoctorCallback` for in-training diagnosis.
 - Twelve simulated pathology scenarios, doubling as the test suite's detection matrix
   and as `rldoctor demo` / `rldoctor selftest`.
+- Native `trainer_state.json` ingestion (every HuggingFace checkpoint ships one) and
+  verl's `file` logger format, including `val-core/<source>/<metric>/mean@N` keys.
+- Exactly-zero gradient steps reported as dead updates, and counted as wasted rollouts.
+- `validation/`: four public GRPO runs with pinned verdicts, re-checked in CI.
+
+### Fixed before release, found on real logs
+
+- `nan` padding from eval rows logged on a different cadence was counted as non-finite
+  gradient norms -- a false "numerically dead" verdict on a healthy run.
+- Statistical outliers only 2x the median were reported as gradient spikes.
+- Truncation was counted as wasted rollout compute, producing an indefensible "99%".
+- TRL's `eval_` prefix was not recognised, so held-out metrics leaked into training series.

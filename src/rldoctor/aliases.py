@@ -158,7 +158,23 @@ _GENERIC_TAILS = frozenset({"mean", "std", "max", "min", "avg", "sum", "count", 
 #: underscore while verl writes ``val/test_score`` with a slash, and treating
 #: only one of them as an eval prefix means the other's metrics get merged into
 #: the training series.
-_EVAL_PREFIXES = ("eval/", "eval_", "val/", "val_", "test/", "test_", "validation/", "validation_")
+_EVAL_PREFIXES = (
+    "val-core/",  # verl: headline validation metrics, val-core/<source>/<var>/mean@N
+    "val-aux/",  # verl: auxiliary validation metrics
+    "eval/",
+    "eval_",
+    "val/",
+    "val_",
+    "test/",
+    "test_",
+    "validation/",
+    "validation_",
+)
+
+#: Aggregates of a held-out score that are not the score itself: its spread or
+#: its worst case. Reading `val-core/gsm8k/acc/std@4` as the held-out score
+#: would make the reward-hacking check compare against noise.
+_EVAL_NON_SCORE = ("std", "min", "max", "worst", "var")
 
 #: Words that make an eval-prefixed key a *score* rather than an eval-split copy
 #: of some other training metric.
@@ -208,6 +224,9 @@ def resolve(key: str) -> Optional[str]:
         inner = _resolve_plain(remainder)
         if inner not in (None, S.REWARD_MEAN):
             return None  # eval-split copy of entropy, length, clip fraction, ...
+        last = remainder.rsplit("/", 1)[-1]
+        if any(last.startswith(word) for word in _EVAL_NON_SCORE):
+            return None
         if any(word in remainder for word in _SCORE_WORDS):
             return S.EVAL_SCORE
         return None

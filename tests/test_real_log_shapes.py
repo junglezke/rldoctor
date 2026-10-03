@@ -226,3 +226,55 @@ def test_occasional_zeros_are_not_alarming():
     values = [0.0 if i % 50 == 0 else 0.5 for i in range(500)]
     finding = diagnose(run_from_records(_with_grad(values))).by_name("gradient_pathology")
     assert finding.severity is Severity.OK
+
+
+# -- verl's own file logger -------------------------------------------------
+
+
+def test_verl_file_logger_output_is_read(tmp_path):
+    """verl's `trainer.logger=['file']` nests metrics under "data". Read naively
+    the run comes back empty, which on the dominant RL framework would make the
+    tool useless without anyone noticing why."""
+    path = tmp_path / "exp.jsonl"
+    with path.open("w", encoding="utf-8") as handle:
+        for step in range(1, 121):
+            data = {
+                "critic/score/mean": 0.2 + step * 0.003,
+                "actor/entropy": 0.6 - step * 0.002,
+                "actor/pg_clipfrac": 0.03,
+                "actor/grad_norm": 0.4,
+                "response_length/mean": 800.0,
+                "response_length/clip_ratio": 0.01,
+                "perf/time_per_step": 55.0,
+            }
+            if step % 20 == 0:
+                data["val-core/openai/gsm8k/acc/mean@1"] = 0.3 + step * 0.002
+                data["val-core/openai/gsm8k/acc/std@4"] = 0.05
+                data["val-aux/openai/gsm8k/response_length/mean@1"] = 790.0
+            handle.write(json.dumps({"step": step, "data": data}) + "\n")
+
+    run = load_run(str(path))
+    assert run.n_steps == 120
+    for field in (S.REWARD_MEAN, S.ENTROPY, S.PG_CLIPFRAC, S.GRAD_NORM,
+                  S.RESPONSE_LEN_MEAN, S.RESPONSE_LEN_CLIP_RATIO, S.TIME_PER_STEP):
+        assert run.has(field), field
+    # The held-out score is the mean, never its spread.
+    _, held_out = run.finite(S.EVAL_SCORE)
+    assert held_out.size == 6 and held_out.min() > 0.3
+    # And validation-split lengths stay out of the training series.
+    _, lengths = run.finite(S.RESPONSE_LEN_MEAN)
+    assert set(lengths) == {800.0}
+
+
+@pytest.mark.parametrize(
+    "key, expected",
+    [
+        ("val-core/openai/gsm8k/acc/mean@1", S.EVAL_SCORE),
+        ("val-core/openai/gsm8k/reward/mean@1", S.EVAL_SCORE),
+        ("val-core/openai/gsm8k/acc/std@4", None),
+        ("val-aux/openai/gsm8k/response_length/mean@1", None),
+        ("eval_rewards/accuracy_reward/std", None),
+    ],
+)
+def test_verl_validation_keys(key, expected):
+    assert aliases.resolve(key) == expected
